@@ -77,7 +77,7 @@ In each spreadsheet that is parsed, a row can either designated as meta data, a 
 
 A spreadsheet that contains information for the `SolarSystem` class might look something like this:
 
-![solar system spreadsheet]("./excelsheet.png")
+![solar system spreadsheet]("excelsheet.png")
 
 In this sheet, the `#author`, `#email` and `#date_modified` fields will be ignored. The `$starName` will technically also be ignored, but one day it will be passed as a variable.
 
