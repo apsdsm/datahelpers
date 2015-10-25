@@ -18,6 +18,17 @@ If you're not cool with any of the above, then you're not using the right librar
 
 This is not finished software - this library is actively being developed, and is probably going to improve as time goes on. Use at your own risk. Also, right now it's set to spit out a lot of debug data, so don't be concerned if your debug console seem unusually verbose.
 
+## Changes
+
+### v0.2
+
+- you don't need to pass an array of field names any more. These are now calculated automatically by the importer when it gets a new spreadsheet.
+- added an auto import method for simple data types
+
+### v0.1
+
+- initial version
+
 ## How it works
 
 The system is made up of three major parts.
@@ -63,15 +74,15 @@ class SolarSystem : ScriptableObject {
 
 ```
 
-The goal here is that we want to have a speadsheet that contains a list of planets that we can import into a `SolarSystem` asset file. Let's start by defining what the spreadsheet should look like.
+The goal here is that we want to have a spreadsheet that contains a list of planets that we can import into a `SolarSystem` asset file. Let's start by defining what the spreadsheet should look like.
 
 In each spreadsheet that is parsed, a row can either designated as meta data, a variable, a title, or a parseable row.
 
 **meta data** is intended to be used in the spreadsheet itself, and is not data that is required by the asset in any way. This might be the author of the spreadsheet, or the last date that the sheet was updated. Any rows that starts with a `#` is considered meta data
 
-**variables** are interpreted as simple values that will be stored and passed to the object without being tied to any specific parsable row. This could be a good place to add data which is non-repeating but needs to be set in the object (this isn't implemented yet). Any row that starts with a `$` is considered a variable.
+**variables - not implemented yet** are interpreted as simple values that will be stored and passed to the object without being tied to any specific parsable row. This could be a good place to add data which is non-repeating but needs to be set in the object. Any row that starts with a `$` is considered a variable.
 
-**titles** are just rows that have information about what each cell is supposed to contain, and these are not parsed or used in any way by the system. And row that starts with a `[` is considered a title.
+**titles** are rows that have information about what each cell is supposed to contain, and these are not parsed or used in any way by the system. And row that starts with a `[` is considered a title. When the importer finds a row of titles, it will use these names (without the square brackets) as the column names, which can be used for your validations.
 
 **parseable rows** are rows of tabular data that will be fed into the validator and importer. Any row that isn't blank, and that doesn't start with one of the control characters above, will be treated as parseable data.
 
@@ -81,7 +92,7 @@ A spreadsheet that contains information for the `SolarSystem` class might look s
 
 In this sheet, the `#author`, `#email` and `#date_modified` fields will be ignored. The `$starName` will technically also be ignored, but one day it will be passed as a variable.
 
-The row starting with `[Planet Name]` will be treated as title data and ignored.
+The row starting with `[Planet Name]` will be the names of the fields that are referenced by the Importer and the Validator
 
 Everything below that will be treated as parsable data that can be imported.
 
@@ -89,31 +100,32 @@ So, to import this data, there are three more classes we need to define. The fir
 
 ```csharp
 
-public class SolarSystemValidator : Validator {
+public class SolarSystemValidator : Validator 
+{
 
-    void Validate(ValidatorNode node) {
+    void Validate( ValidatorNode node ) 
+    {
 
         // must have name
-        if (node["name"] == "") {
+        if (node[ "Planet Name" ] == "") {
             SetErrorMessage(node, "planets must have a name");
             return;
         }
 
         // must have distance
-        if (node["distanceFromSun"] == "") {
+        if (node[ "Distance From Sun" ] == "") {
             SetErrorMessage(node, "planets must have a distance");
             return;
         }
 
         // must have valid distance
-        float distance = node.AsFloat("distanceFromSun");
+        float distance = node.AsFloat( "Distance From Sun" );
 
         if (distance < 0.0f) {
             SetErrorMessage(node, "cannot have distance less than 0");
             return;
         }
     }
-
 }
 
 ```
@@ -135,25 +147,24 @@ Now that the validator is written, we need to write a data importer.
 
 ```csharp
 
-public class SolarSystemImporter : Importer<SolarSystem> {
-
-    void CopyDataToAsset(SolarSystem asset, ValidatorNode[] nodes) {
-
+public class SolarSystemImporter : Importer<SolarSystem> 
+{
+    void CopyDataToAsset(SolarSystem asset, ReadBundle readBundle) 
+    {
         // whatever set up the asset requires
         asset.planets = new List<Planet>();
 
         // set up each new planet, then add it to the solar system
-        foreach (ValidatorNode node in nodes) {
+        foreach (ValidatorNode node in readBundle.validatedNodes) {
 
             Planet p = new Destination();
 
-            p.name = node["name"];
-            p.distanceFromSun = node.AsFloat("distanceFromSun");
+            p.name = node[ "Planet Name" ];
+            p.distanceFromSun = node.AsFloat( "Distance From Sun" );
 
             asset.destinations.Add(p);
         }
     }
-
 }
 
 ```
@@ -161,7 +172,7 @@ public class SolarSystemImporter : Importer<SolarSystem> {
 The important things to note are:
 
 - The class must derive from `Importer` and must pass the type of asset it is responsible for
-- the class must define a `CopyDataToAsset` method that takes an asset of the same type this importer is responsible for, and an array of `ValidatorNode` objects.
+- the class must define a `CopyDataToAsset` method that takes an asset of the same type this importer is responsible for, and a `ReadBundle` object. The `ReadBundle` is how information about the spreadsheet is passed around. The validated nodes can be found in a list called `validatedNodes` inside the `ReadBundle`.
 
 After that, it's up to you to parse each of the nodes into the asset any way you see fit. The asset will automatically be written to a location in your assets folder (see below for more info on where, exactly).
 
@@ -174,16 +185,13 @@ public class DestinationListPostProcessor : AssetPostprocessor {
     private static void OnPostprocessAllAssets(string[] importedAssets,
                                                string[] deletedAssets,
                                                string[] movedAssets,
-                                               string[] movedFromPath) {
-
-        string[] fieldNames = new string[] { 
-            "name", 
-            "distanceFromSun"
-        };
-
-        foreach (string asset in importedAssets) {
-            if (asset.Contains(".solarsystem.")) {
-                PostprocessorHelper.Import<SolarSystem,SolarSystemImporter,                                       SolarSystemValidator>(asset, fieldNames);
+                                               string[] movedFromPath) 
+    {
+        foreach (string asset in importedAssets) 
+        {
+            if (asset.Contains(".solarsystem.")) 
+            {
+                PostprocessorHelper.Import<SolarSystem, SolarSystemImporter, SolarSystemValidator>( asset );
             }
         }
     }
@@ -196,7 +204,8 @@ Important things to note:
 - the class must inherit from AssetPostProcessor
 - the name and parameters of the static method must match the example. That's a Unity thing.
 - you need to define the names of the fields yourself, and this is a good place to do it.
-- when you call the `PostprocessorHelper` you need to supply the type of the asset, of its validator, and of its importer, as well as the asset location and an array that contains all the fieldnames.
+- when you call the `PostprocessorHelper` you need to supply the type of the asset, of its validator, and of its importer, as well as the asset location.
+- the field names are calculated based on what's in your spreadsheet.
 
 If you want more info on how this part works, first of all make sure you read and grasp what's being said in the [Unity documentation for the AssetPostprocessor](http://docs.unity3d.com/ScriptReference/AssetPostprocessor.html).
 
@@ -204,7 +213,67 @@ This is basically a custom post processor that is searching for a specific strin
 
 After you have these elements set up in your system, you should be able to drag and drop Excel files into your project and have them automatically validated and imported.
 
-## What data types are supported?
+## Automating the Import method using field attributes
+
+In version 0.2 there is also a slightly easier way to import long lists of data. This is based on the assumption that you're importing a spreadsheet where each row is a representation of a single object that is stored in a `List` of similar objects.
+
+There is now a `CopyReadBundleIntoList` method available from any inherited `Importer` obejct, which will automate the process of copying data, so long as you have added a few custom attributes to your asset definition.
+
+The attributes are `DIColName` and `DICopyMethod`.
+
+`DIColName` allows you to specify the column name in the spreadsheet that will be used as the source to populate the specific field to which it is attached. the type of data that is currently supported is `float` and `string`, with more to come next release.
+
+If the type of data to be imported isn't supported or a standard type, then you can use the `DICopyMethod` and specify a method in your importer that will be invoked to copy data from the source `ValidationNode` over to the asset.
+
+The method which is declared using the `DICopyMethod` attribute must take a string as the first parameter (this is how all data is stored in a Validation Node) and it must take a reference to the asset type as the second parameter.
+
+To make an example using the previous Planet class, let's say we add the attributes to the existing fields, but also add a new field called `PlanetType`, which could be some kind of `enum`:
+
+
+```csharp
+
+[System.Serializable]
+class Planet {
+
+    [ DIColName ( "Planet Name" ) ]
+    public string name;
+
+    [ DIColName ( "Distance From Sun" ) ]
+    public float distanceFromSun;
+
+    [ DIColName ( "Planet Type" ) ]
+    [ DICopyMethod ( "CopyPlanetType" ) ]
+    public PlanetType planetType;
+}
+
+[System.Serializable]
+class SolarSystem : ScriptableObject {
+    public List<Planet> planets;
+}
+
+```
+
+Now we can update our Importer class to look like this:
+
+```csharp
+
+public class SolarSystemImporter : Importer<SolarSystem> 
+{
+    void CopyDataToAsset(SolarSystem asset, ReadBundle readBundle) 
+    {
+       CopyReadBundleIntoList( readBundle, ref asset.planets );
+    }
+
+    void CopyPlanetType( string type, Planet planet)
+    {
+        // do something with the planet and type variables ...
+    }
+}
+
+```
+
+
+## What source data types are supported?
 
 At the moment only Excel files saved as `.xlsx` are supported. Any other file format or suffix and it won't import. I don't really see myself adding support for other data types unless I really need to, but the system is set up in such a way that other data types *could* be added if need be.
 

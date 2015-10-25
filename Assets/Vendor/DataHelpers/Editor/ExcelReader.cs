@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using System.Collections.Generic;
+using System;
 using System.IO;
 
 // for importing excel files
@@ -12,6 +13,32 @@ using NPOI.SS.UserModel;
 /// Provides methods that assist in getting data from Excel documents that have been formated in a specific way.
 /// </summary>
 public class ExcelReader {
+
+
+    /// <summary>
+    /// Will return the value of a cell as a string, no matter what the actual cell type is.
+    /// </summary>
+    /// <param name="cell"></param>
+    /// <returns>string representation of the cell</returns>
+    private static string CellValueAsString(ICell cell) {
+        string s = "";
+
+        switch (cell.CellType) {
+            case CellType.String:
+                s = cell.StringCellValue;
+                break;
+
+            case CellType.Numeric:
+                s = Convert.ToString(cell.NumericCellValue);
+                break;
+
+            case CellType.Boolean:
+                s = Convert.ToString(cell.BooleanCellValue);
+                break;
+        }
+
+        return s;
+    }
 
     /// <summary>
     /// Read an excel file and extract the meta, variables, and parsable rows.
@@ -30,6 +57,9 @@ public class ExcelReader {
             // get workbook
             XSSFWorkbook wb = new XSSFWorkbook(fs);
 
+			// get field names
+			GetFieldNames(ref bundle.fieldNames, wb);
+
             // get key/value meta data
             GetKeyValData(ref bundle.meta, wb, "#");
 
@@ -38,11 +68,9 @@ public class ExcelReader {
 
             // get the parsable rows
             GetParsableRows(ref bundle.rows, wb);
-
         }
     }
-
-
+	
     /// <summary>
     /// Get the parsable rows from a workbook
     /// </summary>
@@ -58,34 +86,39 @@ public class ExcelReader {
         while (reading) {
             IRow row = sheet.GetRow(rindex);
 
-            if (row != null) {
+            // if there is a row, and it's not empty
+            if (row != null && row.Cells.Count > 0) {
 
-                // check to see if the row is parsable
-
+                // check to see if the row is parsable by looking at the first value
                 ICell firstCell = row.GetCell(0);
 
                 if (firstCell != null) {
 
-                    string firstCellVal = firstCell.StringCellValue;
-
-                    // treat the cell as parsable if it is:
-                    // - not empty
+                    string firstCellVal = CellValueAsString(firstCell);
+                                        
+                    // treat the row as parsable if it is:
                     // - not a title
                     // - not metadata
                     // - not a variable
-                    if (firstCellVal.Length > 0 && firstCellVal[0] != '[' && firstCellVal[0] != '#' && firstCellVal[0] != '$') {
+                    if (firstCellVal[0] != '[' && firstCellVal[0] != '#' && firstCellVal[0] != '$') {
 
-                        string[] cells = new string[row.LastCellNum];
-
+                        // cells are stored in parsable row objects
                         ParsableRow pr = new ParsableRow();
 
+                        // copy the line number to the parsable row object
                         pr.linenumber = rindex;
+
+						// make an array which is as long as the last cell number - note that NPOI will show cells **up to** the last cell that
+						// contains data, so if a row in the sheet only has a single value in the fourth column, that row will return null for all
+						// indices up to 2, then a value for index 3.
                         pr.cells = new string[row.LastCellNum];
 
+                        // for each cell in the row, convert it to a string and copy it to the parsable row object
                         for (int i = 0; i < row.LastCellNum; i++) {
-                            pr.cells[i] = row.GetCell(i).StringCellValue;
+                            pr.cells[i] = CellValueAsString(row.GetCell(i));                   
                         }
-
+                        
+                        // add the parsable row object we just set up to the list of rows that was passed to the method
                         rows.Add(pr);
                     }
                 }
@@ -126,15 +159,13 @@ public class ExcelReader {
 
                 if (keyCell != null && valCell != null) {
 
-                    string key = keyCell.StringCellValue;
-                    string val = valCell.StringCellValue;
+                    // get key and value as strings
+                    string key = CellValueAsString(keyCell);
+                    string val = CellValueAsString(valCell);
 
+                    // if the key is not blank, and starts with the specified data precix, remove the prefix and add the keyvalue pair to the dictionary
                     if (key.Length > 1 && key.StartsWith(dataPrefix)) {
-
-                        // remove the data prefix from the variable name
                         key = key.Replace(dataPrefix, "");
-
-                        // add to data set
                         data.Add(key, val);
                     }
                 }
@@ -149,4 +180,50 @@ public class ExcelReader {
             }
         }
     }
+
+
+	/// <summary>
+	/// Gets the field names from a workbook and stores them in a list.
+	/// </summary>
+	/// <param name="fieldNames">list where field names will be stored</param>
+	/// <param name="workbook">workbook from which field names will be extracted</param>
+	public static void GetFieldNames(ref List<string> fieldNames, XSSFWorkbook workbook) 
+	{
+		ISheet sheet = workbook.GetSheetAt( 0 );
+		bool reading = true;
+		int rindex = sheet.FirstRowNum;
+
+		while ( reading )
+		{
+			IRow row = sheet.GetRow( rindex );
+
+			if ( row != null )
+			{
+				ICell cell = row.GetCell( 0 );
+
+				if ( cell != null ) 
+				{
+					string s = CellValueAsString(cell);
+
+					if (s != "" && s[0] == '[') 
+					{
+						for (int i = 0; i < row.LastCellNum; i++) 
+						{
+							s = CellValueAsString(row.GetCell(i)).TrimEnd(']').TrimStart('[');;
+							fieldNames.Add(s);
+						}
+
+						// don't read more than one row of field names
+						reading = false;
+					}
+				}
+			}
+
+			// increase index
+			rindex++;
+
+			// stop reading if we're out of bounds
+			reading = rindex <= sheet.LastRowNum;
+		}
+	}
 }

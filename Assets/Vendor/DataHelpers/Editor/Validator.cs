@@ -8,8 +8,9 @@ using System.Reflection;
 /// Generic interface describing any validation class.
 /// </summary>
 public interface IValidator {
-    void AddParsableRows(List<ParsableRow> rows, string[] fieldnames);
-    bool IsValid();
+    //void AddParsableRows(List<ParsableRow> rows, string[] fieldnames);
+	void AddParsableRows(ReadBundle rb);
+    bool IsValid( ReadBundle rb );
     string[] Errors { get; }
     ValidatorNode[] Nodes { get; }
 }
@@ -38,6 +39,24 @@ public class ValidatorNode {
         set {
             fields[fieldName] = value;
         }
+    }
+
+    /// <summary>
+    /// Returns the specified field as a float
+    /// </summary>
+    /// <param name="fieldName"></param>
+    /// <returns></returns>
+    public float AsFloat(string fieldName) {
+        return Convert.ToSingle(fields[fieldName]);
+    }
+
+    /// <summary>
+    /// Returns the specified field as a 32 bit int
+    /// </summary>
+    /// <param name="fieldName"></param>
+    /// <returns></returns>
+    public int AsInt32(string fieldName) {
+        return Convert.ToInt32(fields[fieldName]);
     }
 }
 
@@ -83,14 +102,11 @@ public abstract class Validator : IValidator {
     // method will be called when validating nodes
     readonly MethodInfo validatorMethod = null;
 
-    // method will be called when fetching the fieldnames to import
-    readonly MethodInfo fieldNamesMethod = null;
-
     /// <summary>
     /// Constructs a new validator.
     /// </summary>
-    public Validator() {
-
+    public Validator() 
+	{
         // get method info for a validation method (if one has been defined)
         validatorMethod = GetType().GetMethod("Validate", BindingFlags.NonPublic | BindingFlags.Instance, null, new Type[] { typeof(ValidatorNode) }, null);
     }
@@ -115,7 +131,7 @@ public abstract class Validator : IValidator {
         }
     }
 
-
+	/*
     /// <summary>
     /// Add a list of parsable rows to the validation chain.
     /// </summary>
@@ -139,12 +155,37 @@ public abstract class Validator : IValidator {
             validationChain.Add(node);
         }
     }
+	*/
+
+	/// <summary>
+	/// Add parsable rows from the read bundle, which should have the field names included.
+	/// </summary>
+	/// <param name="rb">Rb.</param>
+	public void AddParsableRows(ReadBundle rb) {
+
+		// of each parsable row, copy the field data into a validation node, and then add that to the validation chain
+		foreach (ParsableRow row in rb.rows) {
+			
+			ValidatorNode node = new ValidatorNode();
+			
+			// copy values into node fields, either cell values, or just a blank strings if there are no more cells to read
+			for (int i = 0; i < rb.fieldNames.Count; i++) {
+				node.fields.Add(rb.fieldNames[i], i < row.cells.Length ? row.cells[i] : "");
+			}
+			
+			// copy the line number
+			node.lineNumber = row.linenumber;
+			
+			// add to validation chain
+			validationChain.Add(node);
+		}
+	}
 
     /// <summary>
     /// Check to see if the current validation chain is valid.
     /// </summary>
     /// <returns>true if valid, otherwise false</returns>
-    public bool IsValid() {
+    public bool IsValid(ReadBundle readBundle) {
 
         // if there was no method found, flag a universal error and stop processing
         if (validatorMethod == null) {
@@ -164,6 +205,12 @@ public abstract class Validator : IValidator {
                 }
             }
         }
+
+		// if valid, copy the validation chain to the read bundle
+		if ( valid )
+		{
+			readBundle.validatedNodes = validationChain;
+		}
 
         return valid;
     }

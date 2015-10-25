@@ -20,19 +20,24 @@ public class ParsableRow {
 public class ReadBundle {
     public Dictionary<string, string> meta = new Dictionary<string, string>();
     public Dictionary<string, string> vars = new Dictionary<string, string>();
+	public List<string> fieldNames = new List<string>();
     public List<ParsableRow> rows = new List<ParsableRow>();
+	public List<ValidatorNode> validatedNodes = new List<ValidatorNode>();
 }
-
 
 /// <summary>
 /// A class that provides helper functions for post processors. It looks at an asset an decides which reader helpers to use to get the data into a raw bundle, then it 
 /// passes the bundle to the appropriate importers and validators.
 /// </summary>
 public static class PostprocessorHelper {
-    
-  
 
-    public static ScriptableObject LoadOrCreateAsset<T>(string path) where T : ScriptableObject {
+    /// <summary>
+    /// Will either load an existing asset of the specified type, or create a new one.
+    /// </summary>
+    /// <typeparam name="T">Type of asset to create</typeparam>
+    /// <param name="path">where to load from or create</param>
+    /// <returns>the scriptiable object that was loaded or created.</returns>
+    private static ScriptableObject LoadOrCreateAsset<T>(string path) where T : ScriptableObject {
 
         // get the file name
         string assetFileName = Path.GetFileName(path);
@@ -62,7 +67,6 @@ public static class PostprocessorHelper {
         // now let's reconstruct the path we need to make the asset in
         string destination = path.Replace(sourceFolder, "Resources");
 
-
         // get the last extension
         string extension = Path.GetExtension(destination);
 
@@ -84,50 +88,44 @@ public static class PostprocessorHelper {
         }
 
         return a;
-
     }
+	
+	
+	/// <summary>
+	/// Import the specified type of asset, running it through the specified importer and validator. This version does not have an explicit delcaration of field names.
+	/// </summary>
+	/// <typeparam name="TAsset">the type of asset to import</typeparam>
+	/// <typeparam name="TImporter">the importer to use</typeparam>
+	/// <typeparam name="TValidator">the validator to use</typeparam>
+	/// <param name="asset">the location of the asset</param>
+	public static void Import<TAsset, TImporter, TValidator>(string asset) where TAsset : ScriptableObject where TImporter : IImporter where TValidator : IValidator 
+	{
+		ReadBundle rb = new ReadBundle();
 
-    /// <summary>
-    /// Import the specified type of asset, running it through the specified importer and validator.
-    /// </summary>
-    /// <typeparam name="TAsset">the type of asset to import</typeparam>
-    /// <typeparam name="TImporter">the importer to use</typeparam>
-    /// <typeparam name="TValidator">the validator to use</typeparam>
-    /// <param name="asset">the location of the asset</param>
-    public static void Import<TAsset, TImporter, TValidator>(string asset, string[] fields) where TAsset : ScriptableObject where TImporter : IImporter where TValidator : IValidator {
+		// if this is an excel file
+		if (asset.EndsWith(".xlsx")) {
+			
+			// if this isn't a temp file
+			if (!asset.Contains("~$")) {
+				
+				// read using Excel
+				ExcelReader.ReadXLSX(asset, ref rb);
+				
+				// create a validator
+				TValidator validator = Activator.CreateInstance<TValidator>();
 
-        ReadBundle rb = new ReadBundle();
 
-        // if this is an excel file
-        if (asset.EndsWith(".xlsx")) {
+				// add parsable rows to validator
+				validator.AddParsableRows( rb );
 
-            // check if it's a temp file
-            if (asset.Contains("~$")) {
-                Debug.Log("looks like a temp file arrived: " + asset);
-            }
-
-            // otherwise import this asset
-            else {
-
-                // read using Excel
-                ExcelReader.ReadXLSX(asset, ref rb);
-
-                // validate using Timeline validator
-                TValidator validator = Activator.CreateInstance<TValidator>();
-
-                validator.AddParsableRows(rb.rows, fields);
-
-                if (validator.IsValid()) {
-
-                    ScriptableObject so = LoadOrCreateAsset<TAsset>(asset);
-
-                    TImporter importer = Activator.CreateInstance<TImporter>();
-
-                    importer.Import(so, validator.Nodes);
-
-                    EditorUtility.SetDirty(so);
-                }
-            }
-        }
-    }
+				// if passes validation, send to importer
+				if (validator.IsValid( rb )) {
+					ScriptableObject so = LoadOrCreateAsset<TAsset>(asset);
+					TImporter importer = Activator.CreateInstance<TImporter>();
+					importer.Import(so, rb);
+					EditorUtility.SetDirty(so);
+				}
+			}
+		}
+	}
 }

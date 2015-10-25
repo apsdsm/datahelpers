@@ -1,0 +1,5 @@
+# OS X Files
+.DS_Store
+
+# Unity's own meta files
+*.meta
