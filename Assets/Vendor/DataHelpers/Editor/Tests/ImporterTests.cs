@@ -9,8 +9,4 @@ using System.IO;
 public class ImporterTests
 {
 
-    [Test]
-    public void Import()
-    {
-    }
 }

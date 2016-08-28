@@ -9,7 +9,7 @@ using System.IO;
 public class ExcelReaderTests {
 
 	[Test]
-	public void ReadsXlsxTest()
+	public void ReadXlsxTest()
 	{
         ExcelReader reader = new ExcelReader();
         ReadBundle readBundle = new ReadBundle();

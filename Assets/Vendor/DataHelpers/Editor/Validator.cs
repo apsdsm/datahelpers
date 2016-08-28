@@ -178,29 +178,17 @@ public class Validator
     /// <returns>true if valid, otherwise false</returns>
     public bool IsValid(ReadBundle readBundle, IValidator validator)
     {
-
-        // if there was no method found, flag a universal error and stop processing
-        if (validatorMethod == null)
+        foreach (ValidatorNode n in validationChain)
         {
-            errors.Add("no validation methods are defined.");
-            valid = false;
-        }
+            validator.Validate(n, this);
 
-        // if a method was found, run each node through the validation method. If any errors are reported
-        // they'll be copied to the error list before processing continues.
-        else
-        {
-            foreach (ValidatorNode n in validationChain)
+            if (!n.valid)
             {
-                validatorMethod.Invoke(this, new object[] { n });
-
-                if (!n.valid)
-                {
-                    errors.Add(n.message);
-                    valid = false;
-                }
+                errors.Add(n.message);
+                valid = false;
             }
         }
+
 
         // if valid, copy the validation chain to the read bundle
         if (valid)
