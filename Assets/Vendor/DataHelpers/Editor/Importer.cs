@@ -1,22 +1,16 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System;
 using System.Reflection;
 using System.Collections.Generic;
 
 
-/// <summary>
-/// Specifies the structure of any Importer class.
-/// </summary>
-public interface IImporter {
-    void Import(ScriptableObject asset, ReadBundle readBundle);
-}
 
 /// <summary>
 /// Base importer class. All importers should be derived from this class. Currently this only deals with Excel files, though it could be expanded to
 /// deal with other file types.
 /// </summary>
 /// <typeparam name="T"></typeparam>
-public abstract class Importer<T> : IImporter {
+public class Importer<T> {
 
     MethodInfo copyMethod = null;
 
@@ -39,7 +33,6 @@ public abstract class Importer<T> : IImporter {
 		{
             copyMethod.Invoke(this, new object[] { asset, readBundle });    
         }
-
     }
 
 

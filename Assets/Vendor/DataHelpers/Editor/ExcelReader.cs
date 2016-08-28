@@ -7,13 +7,10 @@ using System.IO;
 using NPOI.XSSF.UserModel;
 using NPOI.SS.UserModel;
 
-
-
 /// <summary>
 /// Provides methods that assist in getting data from Excel documents that have been formated in a specific way.
 /// </summary>
 public class ExcelReader {
-
 
     /// <summary>
     /// Will return the value of a cell as a string, no matter what the actual cell type is.
@@ -128,6 +125,7 @@ public class ExcelReader {
 
             // check to make sure we're not out of bounds
             if (rindex > sheet.LastRowNum) {
+
                 reading = false;
             }
         }
