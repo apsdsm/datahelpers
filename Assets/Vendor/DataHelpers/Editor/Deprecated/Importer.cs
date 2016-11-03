@@ -80,7 +80,7 @@ public class Importer<T> {
 		list = new List<TAsset>();
 
 		// for each node that was validated
-		foreach (ValidatorRow node in readBundle.validationRows)
+		foreach (Row node in readBundle.rows)
 		{
 
 			// make a new instance of the asset

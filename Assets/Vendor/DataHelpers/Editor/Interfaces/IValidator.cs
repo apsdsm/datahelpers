@@ -1,16 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using UnityEngine;
-
-namespace DataHelpers.Interfaces
+﻿namespace DataHelpers.Contracts
 {
     /// <summary>
-    /// Contract defines functionality for any class that acts as importer.
+    /// Contract defines functionality for any object that validates imported data before it is
+    /// copied to a resource.
     /// </summary>
     public interface IValidator
     {
-        void Validate(ValidatorRow node, ValidationRunner validator);
+        /// <summary>
+        /// Validate a row and its contents.
+        /// </summary>
+        /// <param name="row">the row to validate</param>
+        void Validate(Row row);
     }
 }

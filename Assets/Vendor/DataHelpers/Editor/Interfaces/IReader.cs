@@ -1,15 +1,16 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-
-public interface IReader {
+﻿namespace DataHelpers.Contracts {
 
     /// <summary>
-    /// Read an asset file
+    /// Contract defines object that can act as a data reader, to get data from a source
+    /// file to an ImportData object.
     /// </summary>
-    /// <param name="assetPath"></param>
-    void ReadAsset(string assetPath, ref ImportData bundle);
+    public interface IReader {
 
-
+        /// <summary>
+        /// Read the data contained in an asset, and use it to create a data object.
+        /// </summary>
+        /// <param name="assetPath"></param>
+        /// <param name="data"></param>
+        void ReadAsset(string assetPath, ref ImportData data);
+    }
 }

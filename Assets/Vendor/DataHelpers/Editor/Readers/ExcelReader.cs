@@ -7,221 +7,238 @@ using System.IO;
 using NPOI.XSSF.UserModel;
 using NPOI.SS.UserModel;
 
-/// <summary>
-/// Provides methods that assist in getting data from Excel documents that have been formated in a specific way.
-/// </summary>
-public class ExcelReader : IReader {
+using DataHelpers.Contracts;
+
+namespace DataHelpers.Readers {
 
     /// <summary>
-    /// Will return the value of a cell as a string, no matter what the actual cell type is.
+    /// Provides methods that assist in getting data from Excel documents that have been formated in a specific way.
     /// </summary>
-    /// <param name="cell"></param>
-    /// <returns>string representation of the cell</returns>
-    private static string CellValueAsString(ICell cell) {
-        string s = "";
+    public class ExcelReader : IReader {
 
-        switch (cell.CellType) {
-            case CellType.String:
-                s = cell.StringCellValue;
-                break;
+        /// <summary>
+        /// Read an excel file and extract the meta, variables, and parsable rows.
+        /// </summary>
+        /// <param name="assetPath"></param>
+        public void ReadAsset(string assetPath, ref ImportData data) {
 
-            case CellType.Numeric:
-                s = Convert.ToString(cell.NumericCellValue);
-                break;
+            Debug.Log("START IMPORT PROCESS FOR XLSX");
 
-            case CellType.Boolean:
-                s = Convert.ToString(cell.BooleanCellValue);
-                break;
+            // get an absolute path to the asset
+            string absolutePath = System.IO.Directory.GetCurrentDirectory() + "/" + assetPath;
+
+            // open a file stream to the asset
+            using (FileStream fs = new FileStream(absolutePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)) {
+
+                // get workbook
+                XSSFWorkbook wb = new XSSFWorkbook(fs);
+
+                // get field names
+                GetFieldNames(data, wb);
+
+                // get key/value meta data
+                GetKeyValData(ref data.meta, wb, "#");
+
+                // get key/value 
+                GetKeyValData(ref data.vars, wb, "$");
+
+                // get the parsable rows
+                GetRows(data, wb);
+            }
         }
 
-        return s;
-    }
+        /// <summary>
+        /// Will return the value of a cell as a string, no matter what the actual cell type is.
+        /// </summary>
+        /// <param name="cell"></param>
+        /// <returns>string representation of the cell</returns>
+        private static string CellValueAsString(ICell cell) {
+            string s = "";
 
-    /// <summary>
-    /// Read an excel file and extract the meta, variables, and parsable rows.
-    /// </summary>
-    /// <param name="assetPath"></param>
-    public void ReadAsset(string assetPath, ref ImportData bundle) {
+            switch (cell.CellType) {
+                case CellType.String:
+                    s = cell.StringCellValue;
+                    break;
 
-        Debug.Log("START IMPORT PROCESS FOR XLSX");
+                case CellType.Numeric:
+                    s = Convert.ToString(cell.NumericCellValue);
+                    break;
 
-        // get an absolute path to the asset
-        string absolutePath = System.IO.Directory.GetCurrentDirectory() + "/" + assetPath;
+                case CellType.Boolean:
+                    s = Convert.ToString(cell.BooleanCellValue);
+                    break;
+            }
 
-        // open a file stream to the asset
-        using (FileStream fs = new FileStream(absolutePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)) {
-
-            // get workbook
-            XSSFWorkbook wb = new XSSFWorkbook(fs);
-
-			// get field names
-			GetFieldNames(ref bundle.fieldNames, wb);
-
-            // get key/value meta data
-            GetKeyValData(ref bundle.meta, wb, "#");
-
-            // get key/value 
-            GetKeyValData(ref bundle.vars, wb, "$");
-
-            // get the parsable rows
-            GetParsableRows(ref bundle.rows, wb);
+            return s;
         }
-    }
-	
-    /// <summary>
-    /// Get the parsable rows from a workbook
-    /// </summary>
-    /// <param name="rows">a reference to an object that will contain parsable rows</param>
-    /// <param name="workbook">the workbook to extract rows from</param>
-    public static void GetParsableRows(ref List<ParsableRow> rows, XSSFWorkbook workbook) {
 
-        ISheet sheet = workbook.GetSheetAt(0);
 
-        bool reading = true;
-        int rindex = sheet.FirstRowNum;
 
-        while (reading) {
-            IRow row = sheet.GetRow(rindex);
+        /// <summary>
+        /// A Row is parable and this method will return true only if:
+        /// - it does not contain a field title
+        /// - it does not contain metadata
+        /// - it does not contain a variable
+        /// - it is not empty
+        /// </summary>
+        /// <param name="row">row to check</param>
+        /// <returns>true if row is parsable</returns>
+        private bool RowIsParsable(IRow row) {
 
-            // if there is a row, and it's not empty
-            if (row != null && row.Cells.Count > 0) {
+            if (row == null || row.Cells.Count == 0) {
+                return false;
+            }
 
-                // check to see if the row is parsable by looking at the first value
-                ICell firstCell = row.GetCell(0);
+            bool isEmpty = true;
 
-                if (firstCell != null) {
+            for (var i = row.FirstCellNum; i < row.LastCellNum; ++i) {
+                ICell cell = row.GetCell(i, MissingCellPolicy.RETURN_BLANK_AS_NULL);
 
-                    string firstCellVal = CellValueAsString(firstCell);
-                                        
-                    // treat the row as parsable if it is:
-                    // - not a title
-                    // - not metadata
-                    // - not a variable
-                    if (firstCellVal[0] != '[' && firstCellVal[0] != '#' && firstCellVal[0] != '$') {
+                if (cell != null) {
+                    string val = CellValueAsString(cell);
 
-                        // cells are stored in parsable row objects
-                        ParsableRow pr = new ParsableRow();
+                    if (val[0] == '[' || val[0] == '#' || val[0] == '$') {
+                        return false;
 
-                        // copy the line number to the parsable row object
-                        pr.linenumber = rindex;
+                    } else if (val != "") {
+                        isEmpty = false;
+                    }
+                }
+            }
 
-						// make an array which is as long as the last cell number - note that NPOI will show cells **up to** the last cell that
-						// contains data, so if a row in the sheet only has a single value in the fourth column, that row will return null for all
-						// indices up to 2, then a value for index 3.
-                        pr.cells = new string[row.LastCellNum];
+            if (isEmpty) {
+                return false;
+            }
 
-                        // for each cell in the row, convert it to a string and copy it to the parsable row object
-                        for (int i = 0; i < row.LastCellNum; i++) {
-                            pr.cells[i] = CellValueAsString(row.GetCell(i));                   
+            return true;
+        }
+
+        /// <summary>
+        /// Get the parsable rows from a workbook
+        /// </summary>
+        /// <param name="rows">a reference to an object that will contain parsable rows</param>
+        /// <param name="workbook">the workbook to extract rows from</param>
+        private void GetRows(ImportData data, XSSFWorkbook workbook) {
+
+            ISheet sheet = workbook.GetSheetAt(0);
+
+            bool reading = true;
+            int rowIndex = sheet.FirstRowNum;
+
+            while (reading) {
+                IRow row = sheet.GetRow(rowIndex);
+
+                if (RowIsParsable(row)) {
+
+                    var validatorRow = new Row();
+                    validatorRow.lineNumber = rowIndex;
+
+                    for (int i = 0; i < data.fieldNames.Count; ++i) {
+                        var fieldName = data.fieldNames[i];
+                        var field = new Field() { value = CellValueAsString(row.GetCell(i)) };
+
+                        validatorRow.fields.Add(fieldName, field);
+                    }
+
+                    data.rows.Add(validatorRow);
+                }
+
+                rowIndex++;
+
+                if (rowIndex > sheet.LastRowNum) {
+                    reading = false;
+                }
+            }
+        }
+
+
+        /// <summary>
+        /// Get key/value data from the workbook, and store it in the provided dictionary. The key for the
+        /// data pair must be prefixed with a single character, such as '$' or '#'. The prefix will be 
+        /// removed from the keyname before it is inserted into the dictionary.
+        /// </summary>
+        /// <param name="dictionary">where meta will be stored</param>
+        /// <param name="workbook">the workbook to extract data from</param>
+        /// <param name="assetpath">the path of the asset being trawled</param>
+        private static void GetKeyValData(ref Dictionary<string, string> dictionary, XSSFWorkbook workbook, string dataPrefix) {
+
+            ISheet sheet = workbook.GetSheetAt(0);
+
+            bool reading = true;
+            int rindex = sheet.FirstRowNum;
+
+            while (reading) {
+
+                IRow row = sheet.GetRow(rindex);
+
+                if (row != null) {
+                    ICell keyCell = row.GetCell(0);
+                    ICell valCell = row.GetCell(1);
+
+                    if (keyCell != null && valCell != null) {
+
+                        // get key and value as strings
+                        string key = CellValueAsString(keyCell);
+                        string val = CellValueAsString(valCell);
+
+                        // if the key is not blank, and starts with the specified data prefix, 
+                        // remove the prefix and add the keyvalue pair to the dictionary
+                        if (key.Length > 1 && key.StartsWith(dataPrefix)) {
+                            key = key.Replace(dataPrefix, "");
+                            dictionary.Add(key, val);
                         }
-                        
-                        // add the parsable row object we just set up to the list of rows that was passed to the method
-                        rows.Add(pr);
                     }
                 }
+
+                // increase index
+                rindex++;
+
+                // check to make sure we're not out of bounds
+                if (rindex > sheet.LastRowNum) {
+                    reading = false;
+                }
             }
+        }
 
-            rindex++;
 
-            // check to make sure we're not out of bounds
-            if (rindex > sheet.LastRowNum) {
+        /// <summary>
+        /// Gets the field names from a workbook and stores them in a list.
+        /// </summary>
+        /// <param name="fieldNames">list where field names will be stored</param>
+        /// <param name="workbook">workbook from which field names will be extracted</param>
+        public static void GetFieldNames(ImportData data, XSSFWorkbook workbook) {
 
-                reading = false;
+            ISheet sheet = workbook.GetSheetAt(0);
+            bool reading = true;
+            int rindex = sheet.FirstRowNum;
+
+            while (reading) {
+                IRow row = sheet.GetRow(rindex);
+
+                if (row != null) {
+                    ICell cell = row.GetCell(0);
+
+                    if (cell != null) {
+                        string s = CellValueAsString(cell);
+
+                        if (s != "" && s[0] == '[') {
+                            for (int i = 0; i < row.LastCellNum; i++) {
+                                s = CellValueAsString(row.GetCell(i)).TrimEnd(']').TrimStart('['); ;
+                                data.fieldNames.Add(s);
+                            }
+
+                            // don't read more than one row of field names
+                            reading = false;
+                        }
+                    }
+                }
+
+                rindex++;
+
+                if (rindex > sheet.LastRowNum) {
+                    reading = false;
+                }
             }
         }
     }
-
-
-    /// <summary>
-    /// Get meta data from the workbook, and store it in the provided dictionary.
-    /// </summary>
-    /// <param name="data">where meta will be stored</param>
-    /// <param name="workbook">the workbook to extract data from</param>
-    /// <param name="assetpath">the path of the asset being trawled</param>
-    public static void GetKeyValData(ref Dictionary<string, string> data, XSSFWorkbook workbook, string dataPrefix) {
-
-        ISheet sheet = workbook.GetSheetAt(0);
-
-        bool reading = true;
-        int rindex = sheet.FirstRowNum;
-
-        while (reading) {
-
-            // get the current row
-            IRow row = sheet.GetRow(rindex);
-
-            // check the row to see if it's a valid variable row, and if so copy it to the meta dictionary
-            if (row != null) {
-                ICell keyCell = row.GetCell(0);
-                ICell valCell = row.GetCell(1);
-
-                if (keyCell != null && valCell != null) {
-
-                    // get key and value as strings
-                    string key = CellValueAsString(keyCell);
-                    string val = CellValueAsString(valCell);
-
-                    // if the key is not blank, and starts with the specified data precix, remove the prefix and add the keyvalue pair to the dictionary
-                    if (key.Length > 1 && key.StartsWith(dataPrefix)) {
-                        key = key.Replace(dataPrefix, "");
-                        data.Add(key, val);
-                    }
-                }
-            }
-
-            // increase index
-            rindex++;
-
-            // check to make sure we're not out of bounds
-            if (rindex > sheet.LastRowNum) {
-                reading = false;
-            }
-        }
-    }
-
-
-	/// <summary>
-	/// Gets the field names from a workbook and stores them in a list.
-	/// </summary>
-	/// <param name="fieldNames">list where field names will be stored</param>
-	/// <param name="workbook">workbook from which field names will be extracted</param>
-	public static void GetFieldNames(ref List<string> fieldNames, XSSFWorkbook workbook) 
-	{
-		ISheet sheet = workbook.GetSheetAt( 0 );
-		bool reading = true;
-		int rindex = sheet.FirstRowNum;
-
-		while ( reading )
-		{
-			IRow row = sheet.GetRow( rindex );
-
-			if ( row != null )
-			{
-				ICell cell = row.GetCell( 0 );
-
-				if ( cell != null ) 
-				{
-					string s = CellValueAsString(cell);
-
-					if (s != "" && s[0] == '[') 
-					{
-						for (int i = 0; i < row.LastCellNum; i++) 
-						{
-							s = CellValueAsString(row.GetCell(i)).TrimEnd(']').TrimStart('[');;
-							fieldNames.Add(s);
-						}
-
-						// don't read more than one row of field names
-						reading = false;
-					}
-				}
-			}
-
-			// increase index
-			rindex++;
-
-			// stop reading if we're out of bounds
-			reading = rindex <= sheet.LastRowNum;
-		}
-	}
 }
