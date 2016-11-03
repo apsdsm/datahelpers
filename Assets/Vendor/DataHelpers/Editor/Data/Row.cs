@@ -60,7 +60,7 @@ namespace DataHelpers {
         /// <param name="message">the message to be appended to the node</param>
         public void SetErrorMessage(string message) {
             valid = false;
-            message = "error (line " + lineNumber + ") : " + message;
+            errorMessage = "error (line " + lineNumber + ") : " + message;
         }
     }
 }

@@ -16,24 +16,26 @@ namespace DataHelpers {
     public static class PostprocessorHelper {
 
         /// <summary>
-        /// Import the specified type of asset, running it through the specified importer and validator. This version does not have an explicit delcaration of field names.
+        /// Import the specified type of asset, running it through the specified importer and validator. 
+        /// This version does not have an explicit declaration of field names.
         /// </summary>
         /// <typeparam name="TAsset">the type of asset to import</typeparam>
         /// <typeparam name="TImporter">the importer to use</typeparam>
         /// <typeparam name="TValidator">the validator to use</typeparam>
         /// <param name="asset">the location of the asset</param>
-        public static void Import<TAsset, TImporter, TValidator>(string asset) where TAsset : ScriptableObject where TImporter : IImporter<TAsset> where TValidator : IValidator {
+        public static void Import<TAsset, TImporter, TValidator>(string asset) where TAsset : ScriptableObject 
+                                                                               where TImporter : IImporter<TAsset> 
+                                                                               where TValidator : IValidator {
             ImportData rb = new ImportData();
 
             // if this is an excel file
             if (IsImportableExcelFile(asset)) {
 
                 var reader = new ExcelReader();
-
-                reader.ReadAsset(asset, ref rb);
-
                 var validator = new ValidationRunner();
                 var userValidator = Activator.CreateInstance<TValidator>();
+
+                reader.ReadAsset(asset, ref rb);
 
                 // if passes validation, send to importer
                 if (validator.IsValid(rb, userValidator)) {

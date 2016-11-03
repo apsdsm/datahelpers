@@ -3,7 +3,7 @@ using System;
 using System.Reflection;
 using System.Collections.Generic;
 
-
+using DataHelpers;
 
 /// <summary>
 /// Base importer class. All importers should be derived from this class. Currently this only deals with Excel files, though it could be expanded to
