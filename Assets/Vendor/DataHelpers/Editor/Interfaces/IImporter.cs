@@ -11,6 +11,6 @@ namespace DataHelpers.Interfaces
     /// </summary>
     public interface IImporter<T> where T : ScriptableObject
     {
-        void Import(T asset, ReadBundle readBundle);
+        void Import(T asset, ImportData readBundle);
     }
 }

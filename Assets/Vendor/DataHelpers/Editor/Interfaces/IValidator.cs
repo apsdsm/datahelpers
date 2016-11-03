@@ -11,6 +11,6 @@ namespace DataHelpers.Interfaces
     /// </summary>
     public interface IValidator
     {
-        void Validate(ValidatorNode node, Validator validator);
+        void Validate(ValidatorRow node, ValidationRunner validator);
     }
 }

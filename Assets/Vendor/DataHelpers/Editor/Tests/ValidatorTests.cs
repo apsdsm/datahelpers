@@ -12,12 +12,12 @@ public class ValidatorTests
     [Test]
     public void AddParsableNodesToValidatorChain()
     {
-        Validator validator = new Validator();
+        ValidationRunner validator = new ValidationRunner();
 
         ParsableRow row = new ParsableRow();
         row.cells = new string[2] { "foo", "bar" };
 
-        ReadBundle rb = new ReadBundle();
+        ImportData rb = new ImportData();
         rb.fieldNames.Add("Foo");
         rb.fieldNames.Add("Bar");
         rb.rows.Add(row);
@@ -30,12 +30,12 @@ public class ValidatorTests
     [Test]
     public void PassCheckableNodesToUserValidator()
     {
-        Validator validator = new Validator();
+        ValidationRunner validator = new ValidationRunner();
 
         ParsableRow row = new ParsableRow();
         row.cells = new string[2] { "foo", "bar" };
 
-        ReadBundle rb = new ReadBundle();
+        ImportData rb = new ImportData();
         rb.fieldNames.Add("Foo");
         rb.fieldNames.Add("Bar");
         rb.rows.Add(row);
@@ -49,18 +49,17 @@ public class ValidatorTests
         userValidator.Received().Validate(validator.Nodes[0], validator);
     }
 
+    // this should be moved to a test of the row itself...
     [Test]
     public void SetErrorMessage()
     {
-        Validator validator = new Validator();
+        ValidationRunner validator = new ValidationRunner();
 
-        ValidatorNode node = new ValidatorNode();
+        ValidatorRow node = new ValidatorRow();
         node.lineNumber = 1;
-
-
-        validator.SetErrorMessage(node, "foo bar baz");
+        node.SetErrorMessage("foo bar baz");
 
         Assert.AreEqual(false, node.valid, "node should be false");
-        Assert.AreEqual("error line: 1: foo bar baz", node.message, "node should have error set");
+        Assert.AreEqual("error line: 1: foo bar baz", node.errorMessage, "node should have error set");
     }
 }
