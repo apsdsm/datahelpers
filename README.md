@@ -6,7 +6,7 @@ This package provides helper classes designed to make it easier to validate and 
 
 This is not a programming-free solution. You can't drop this package into your project and expect to fiddle around with a few values and get it to work. You will need to create custom validator and importer classes that inherit from the classes included in this package, as well as a custom post processor that will use the included helper class.
 
-I've set it up this way because when it comes to things like data importing, I prefer to keep things at the code level, rather than the settings level. That's just personal taste. Additionally and in any case, I wanted a validation layer, and I couldn't think of a good way to do that with sliders and knobs.
+I've set it up this way because when it comes to things like data importing, I prefer to keep everything at the code level, rather than the settings level. That's just personal taste. Additionally and in any case, I wanted a validation layer, and I couldn't think of a good way to do that with sliders and knobs.
 
 If I didn't feel that calling software libraries "opinionated" is just a cheap way of saying the library isn't flexible, this would definitely fall under the category of "opinionated". As is I'll just say it now: This library is not flexible, and if you use it, you'll have to do things the way that is explained below. It's also coded in C# because come on seriously.
 
@@ -19,6 +19,13 @@ If you're not cool with any of the above, then you're not using the right librar
 This is not finished software - this library is actively being developed, and is probably going to improve as time goes on. Use at your own risk. Also, right now it's set to spit out a lot of debug data, so don't be concerned if your debug console seem unusually verbose.
 
 ## Changes
+
+### v0.3
+
+- oh wow so many. Almost a whole overhaul of everything. Added tests, and made things generally easier to use. This comes at the expense of 0.3 being backwards incompatible. So if anybody was using the library, I'm sorry. More practically, that probably means just me, so I'm sorry, me.
+- changed a lot of terminology and syntax to be more intuitive
+- changed from forcing the user from using abstract class inheritence and now force them to implement interfaces
+- automatic importing is **no longer supported**.
 
 ### v0.2
 
@@ -35,7 +42,7 @@ The system is made up of three major parts.
 
 ### AssetPostProcessor class
 
-This class provides helper methods that allow a user created AssetPostprocessor to easily validate and import data contained in tabular data storage file types (like an excel document or a TSV file).
+This class provides helper methods that allow a user created AssetPostprocessor to easily validate and import data contained in Excel documents.
 
 The user created postprocessor calls the helper class's `Import` method, providing the type references for an asset type, an importer type, and a validator type.
 
@@ -45,13 +52,13 @@ The helper class will then call the correct reader method, send parsable data to
 
 ### Validator class
 
-The second part is the Validator class. This is an abstract class that provides base functionality for validating data that has been collected by the postprocessor helper. 
+The second part is the Validator class. This class provides base functionality for validating data that has been collected by the postprocessor helper. 
 
 The actual validation methods are filled in by the developer, and can be whatever is required to make sure data is valid.
 
 ### Importer class
 
-The third part is the Importer class. This is an abstract class that provides base functionality for importing validated data into a game object. 
+The third part is the Importer class. This class that provides base functionality for importing validated data into a game object. 
 
 The actual method for copying data from the array of valid data into the game asset must be filled in by the developer, and can be whatever is required to get data into the game.
 
@@ -100,29 +107,31 @@ So, to import this data, there are three more classes we need to define. The fir
 
 ```csharp
 
-public class SolarSystemValidator : Validator 
+using DataHelpers;
+
+public class SolarSystemValidator : DataHelpers.IValidator 
 {
 
-    void Validate( ValidatorNode node ) 
+    void Validate( DataHelpers.Row row ) 
     {
 
         // must have name
-        if (node[ "Planet Name" ] == "") {
-            SetErrorMessage(node, "planets must have a name");
+        if (row["Planet Name"].IsNull()) {
+            row.SetErrorMessage("planets must have a name");
             return;
         }
 
         // must have distance
-        if (node[ "Distance From Sun" ] == "") {
-            SetErrorMessage(node, "planets must have a distance");
+        if (row["Distance From Sun"].IsNull()) {
+            row.SetErrorMessage("planets must have a distance");
             return;
         }
 
         // must have valid distance
-        float distance = node.AsFloat( "Distance From Sun" );
+        float distance = row["Distance From Sun"].AsFloat;
 
         if (distance < 0.0f) {
-            SetErrorMessage(node, "cannot have distance less than 0");
+            row.SetErrorMessage("cannot have distance less than 0");
             return;
         }
     }
@@ -132,35 +141,35 @@ public class SolarSystemValidator : Validator
 
 The important things to note are:
 
-- there must be `Validate` method that takes a `ValidatorNode` as its parameter.
-- validation is on a per-parseable-row basis. The node will contain the cells for each row.
+- the IValidate interface must be implemented.
+- validation is on a per-parseable-row basis. The validate method will be called once per row.
 - if an error is encountered, set the error using the `SetErrorMessage` function, then stop processing.
-- all data is stored as strings
-- get data converted into other types using
-    - AsFloat("fieldName") to get a float
-    - AsInt32("fieldName") to get an int
-    - AsBool("fieldName") to get a bool
+- all data is stored as strings, but you can convert fields into other types using
+    - AsFloat to get a float
+    - AsDouble to get a double
+    - AsInt to get an int
+    - AsBool to get a bool
 
-Your validation can technically get as fancy as you want. Each validator node will come with a set of fields that are accessible by using the brackets operator together with the string form name of the field - **note that the names of the fields are set in the custom post processor class, and have nothing to do with any title rows you may have defined in the spreadsheet!**
+Your validation can technically get as fancy as you want. Each validator node will come with a set of fields that are accessible by using the brackets operator together with the string form name of the field *
 
 Now that the validator is written, we need to write a data importer.
 
 ```csharp
 
-public class SolarSystemImporter : Importer<SolarSystem> 
+public class SolarSystemImporter : DataHelpers.IImporter<SolarSystem>
 {
-    void CopyDataToAsset(SolarSystem asset, ReadBundle readBundle) 
+    void Import(SolarSystem asset, DataHelpers.ImportData data) 
     {
         // whatever set up the asset requires
         asset.planets = new List<Planet>();
 
         // set up each new planet, then add it to the solar system
-        foreach (ValidatorNode node in readBundle.validatedNodes) {
+        foreach (var row in data.rows) {
 
             Planet p = new Destination();
 
-            p.name = node[ "Planet Name" ];
-            p.distanceFromSun = node.AsFloat( "Distance From Sun" );
+            p.name = row["Planet Name"];
+            p.distanceFromSun = row["Distance From Sun"].AsFloat;
 
             asset.destinations.Add(p);
         }
@@ -171,8 +180,8 @@ public class SolarSystemImporter : Importer<SolarSystem>
 
 The important things to note are:
 
-- The class must derive from `Importer` and must pass the type of asset it is responsible for
-- the class must define a `CopyDataToAsset` method that takes an asset of the same type this importer is responsible for, and a `ReadBundle` object. The `ReadBundle` is how information about the spreadsheet is passed around. The validated nodes can be found in a list called `validatedNodes` inside the `ReadBundle`.
+- The class must implement `IImporter` and must declare the type of asset it is responsible for
+- the class must define a `Import` method that takes an asset of the same type this importer is responsible for, and a `DataHelpers.Data` object. The `Data` is how information about the spreadsheet is passed around. The validated nodes can be found in a list called `rows` inside the `Data`.
 
 After that, it's up to you to parse each of the nodes into the asset any way you see fit. The asset will automatically be written to a location in your assets folder (see below for more info on where, exactly).
 
@@ -212,65 +221,6 @@ If you want more info on how this part works, first of all make sure you read an
 This is basically a custom post processor that is searching for a specific string in the file names of every imported (or modified) asset. In this case we search for anything that has `.solarsystem.` in the name - running on the assumption that if we will name our Excel files something like `myplanets.solarsystem.xlsx` - but you're free to search for your asset data any way you want.
 
 After you have these elements set up in your system, you should be able to drag and drop Excel files into your project and have them automatically validated and imported.
-
-## Automating the Import method using field attributes
-
-In version 0.2 there is also a slightly easier way to import long lists of data. This is based on the assumption that you're importing a spreadsheet where each row is a representation of a single object that is stored in a `List` of similar objects.
-
-There is now a `CopyReadBundleIntoList` method available from any inherited `Importer` obejct, which will automate the process of copying data, so long as you have added a few custom attributes to your asset definition.
-
-The attributes are `DIColName` and `DICopyMethod`.
-
-`DIColName` allows you to specify the column name in the spreadsheet that will be used as the source to populate the specific field to which it is attached. the type of data that is currently supported is `float` and `string`, with more to come next release.
-
-If the type of data to be imported isn't supported or a standard type, then you can use the `DICopyMethod` and specify a method in your importer that will be invoked to copy data from the source `ValidationNode` over to the asset.
-
-The method which is declared using the `DICopyMethod` attribute must take a string as the first parameter (this is how all data is stored in a Validation Node) and it must take a reference to the asset type as the second parameter.
-
-To make an example using the previous Planet class, let's say we add the attributes to the existing fields, but also add a new field called `PlanetType`, which could be some kind of `enum`:
-
-
-```csharp
-
-[System.Serializable]
-class Planet {
-
-    [ DIColName ( "Planet Name" ) ]
-    public string name;
-
-    [ DIColName ( "Distance From Sun" ) ]
-    public float distanceFromSun;
-
-    [ DIColName ( "Planet Type" ) ]
-    [ DICopyMethod ( "CopyPlanetType" ) ]
-    public PlanetType planetType;
-}
-
-[System.Serializable]
-class SolarSystem : ScriptableObject {
-    public List<Planet> planets;
-}
-
-```
-
-Now we can update our Importer class to look like this:
-
-```csharp
-
-public class SolarSystemImporter : Importer<SolarSystem> 
-{
-    void CopyDataToAsset(SolarSystem asset, ReadBundle readBundle) 
-    {
-       CopyReadBundleIntoList( readBundle, ref asset.planets );
-    }
-
-    void CopyPlanetType( string type, Planet planet)
-    {
-        // do something with the planet and type variables ...
-    }
-}
-
-```
 
 
 ## What source data types are supported?
