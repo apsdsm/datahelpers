@@ -27,24 +27,6 @@ namespace DataHelpers {
         }
 
         /// <summary>
-        /// Returns the specified field as a float
-        /// </summary>
-        /// <param name="fieldName">field to query</param>
-        /// <returns>field value converted to float</returns>
-        public float AsFloat(string fieldName) {
-            return Convert.ToSingle(fields[fieldName].value);
-        }
-
-        /// <summary>
-        /// Returns the specified field as a 32 bit int
-        /// </summary>
-        /// <param name="fieldName">field to query</param>
-        /// <returns>field value converted to int</returns>
-        public int AsInt32(string fieldName) {
-            return Convert.ToInt32(fields[fieldName].value);
-        }
-
-        /// <summary>
         /// Returns true if the node is empty.
         /// </summary>
         /// <param name="fieldName">field to query</param>

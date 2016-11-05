@@ -26,26 +26,24 @@ namespace DataHelpers {
         public static void Import<TAsset, TImporter, TValidator>(string asset) where TAsset : ScriptableObject 
                                                                                where TImporter : IImporter<TAsset> 
                                                                                where TValidator : IValidator {
-            ImportData rb = new ImportData();
+            ImportData data = new ImportData();
 
-            // if this is an excel file
             if (IsImportableExcelFile(asset)) {
 
                 var reader = new ExcelReader();
                 var validator = new ValidationRunner();
                 var userValidator = Activator.CreateInstance<TValidator>();
 
-                reader.ReadAsset(asset, ref rb);
+                reader.ReadAsset(asset, ref data);
 
-                // if passes validation, send to importer
-                if (validator.IsValid(rb, userValidator)) {
-                    var so = LoadOrCreateAsset<TAsset>(asset);
+                if (validator.IsValid(data, userValidator)) {
 
-                    var importer = Activator.CreateInstance<TImporter>();
+                    var scriptableObject = LoadOrCreateAsset<TAsset>(asset);
+                    var userImporter = Activator.CreateInstance<TImporter>();
 
-                    importer.Import((TAsset)so, rb);
+                    userImporter.Import((TAsset)scriptableObject, data);
 
-                    EditorUtility.SetDirty(so);
+                    EditorUtility.SetDirty(scriptableObject);
                 }
             }
         }
