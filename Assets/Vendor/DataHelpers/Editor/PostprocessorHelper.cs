@@ -74,31 +74,34 @@ namespace DataHelpers {
 
             // remove file name
             if (assetPath.EndsWith(assetFileName)) {
-                assetPath.TrimEnd(assetFileName.ToCharArray());
+                assetPath = assetPath.TrimEnd(assetFileName.ToCharArray());
             }
+            
+            // scratch string to replace the next folder under Assets with Resources
+            string tempAssetPath = assetPath;
 
             // if asset path contains the assets folder, remove that
-            if (assetPath.StartsWith("Assets/")) {
-                assetPath = assetPath.TrimStart("Assets/".ToCharArray());
+            if (tempAssetPath.StartsWith("Assets/")) {
+                tempAssetPath = tempAssetPath.TrimStart("Assets/".ToCharArray());
             }
 
             // will hold the source folder name
             string sourceFolder = "";
 
             // read through the asset path to find the first folder name above 'Assets/'
-            while (assetPath != "") {
-                sourceFolder = assetPath;
-                assetPath = Path.GetDirectoryName(assetPath);
+            while (tempAssetPath != "") {
+                sourceFolder = tempAssetPath;
+                tempAssetPath = Path.GetDirectoryName(tempAssetPath);
             }
 
             // now let's reconstruct the path we need to make the asset in
             string destination = assetPath.Replace(sourceFolder, "Resources");
 
-            // get the last extension
-            string extension = Path.GetExtension(destination);
-
             // replace the extension
-            destination = destination.Replace(extension, ".asset");
+            string destinationFileName = Path.ChangeExtension(assetFileName, ".asset");
+
+            // set the final destination
+            destination = Path.Combine(destination, destinationFileName);
 
             // now get the specific destination folder
             string destinationFolder = Path.GetDirectoryName(destination);
