@@ -22,7 +22,7 @@ namespace DataHelpers.Readers {
         /// <param name="assetPath"></param>
         public void ReadAsset(string assetPath, ref ImportData data) {
 
-            Debug.Log("START IMPORT PROCESS FOR XLSX");
+            Debug.Log("START IMPORT PROCESS FOR XLSX: " + Path.GetFileName(assetPath));
 
             // get an absolute path to the asset
             string absolutePath = System.IO.Directory.GetCurrentDirectory() + "/" + assetPath;
@@ -54,6 +54,9 @@ namespace DataHelpers.Readers {
         /// <returns>string representation of the cell</returns>
         private static string CellValueAsString(ICell cell) {
             string s = "";
+
+            if (cell == null)
+                return s;
 
             switch (cell.CellType) {
                 case CellType.String:
