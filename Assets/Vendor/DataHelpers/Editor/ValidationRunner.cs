@@ -22,6 +22,7 @@ namespace DataHelpers {
 
                 if (!row.valid) {
                     valid = false;
+                    Debug.LogError("Import failed " + row.errorMessage);
                 }
             }
 

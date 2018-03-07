@@ -107,22 +107,22 @@ So, to import this data, there are three more classes we need to define. The fir
 
 ```csharp
 
-using DataHelpers;
+using DataHelpers.Contracts;
 
-public class SolarSystemValidator : DataHelpers.IValidator 
+public class SolarSystemValidator : IValidator 
 {
 
-    void Validate( DataHelpers.Row row ) 
+    public void Validate( DataHelpers.Row row ) 
     {
 
         // must have name
-        if (row["Planet Name"].IsNull()) {
+        if (row["Planet Name"].IsEmpty()) {
             row.SetErrorMessage("planets must have a name");
             return;
         }
 
         // must have distance
-        if (row["Distance From Sun"].IsNull()) {
+        if (row["Distance From Sun"].IsEmpty()) {
             row.SetErrorMessage("planets must have a distance");
             return;
         }
@@ -156,9 +156,11 @@ Now that the validator is written, we need to write a data importer.
 
 ```csharp
 
-public class SolarSystemImporter : DataHelpers.IImporter<SolarSystem>
+using DataHelpers.Contracts;
+
+public class SolarSystemImporter : IImporter<SolarSystem>
 {
-    void Import(SolarSystem asset, DataHelpers.ImportData data) 
+    public void Import(SolarSystem asset, DataHelpers.ImportData data) 
     {
         // whatever set up the asset requires
         asset.planets = new List<Planet>();
@@ -168,7 +170,7 @@ public class SolarSystemImporter : DataHelpers.IImporter<SolarSystem>
 
             Planet p = new Destination();
 
-            p.name = row["Planet Name"];
+            p.name = row["Planet Name"].value;
             p.distanceFromSun = row["Distance From Sun"].AsFloat;
 
             asset.destinations.Add(p);
@@ -188,6 +190,9 @@ After that, it's up to you to parse each of the nodes into the asset any way you
 With the validator and Importer written, the last thing to do is to write the custom postprocessor.
 
 ```csharp
+
+using UnityEditor;
+using DataHelpers;
 
 public class DestinationListPostProcessor : AssetPostprocessor {
 
